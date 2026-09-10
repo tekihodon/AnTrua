@@ -1,0 +1,12 @@
+{
+  "dbUrl": "postgresql://user:password@host:5432/database",
+  "adminPass": "change-me",
+  "vietqr": {
+    "bankBin": "",
+    "bankName": "",
+    "accountNo": "",
+    "accountName": "",
+    "template": "print",
+    "link_template": "https://img.vietqr.io/image/<BANK_ID>-<ACCOUNT_NO>-<TEMPLATE>.png?amount=<AMOUNT>&addInfo=<DESCRIPTION>&accountName=<ACCOUNT_NAME>"
+  }
+}

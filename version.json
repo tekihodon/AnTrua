@@ -1,0 +1,8 @@
+{
+  "version": "1.0.0",
+  "released_at": "2026-09-10",
+  "docker_image": "tekihodon/antrua",
+  "changelog": [
+    "1.0.0: Xóa dữ liệu giao dịch, giữ danh sách thành viên hiện tại"
+  ]
+}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Admin Login - Ăn Trưa BSV{% endblock %}
+{% block content %}
+
+<div class="min-h-screen flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 w-full max-w-sm">
+    <div class="text-center mb-6">
+      <h1 class="text-2xl font-black text-slate-800 tracking-wide">ĂN TRƯA BSV</h1>
+      <p class="text-xs text-slate-400 mt-1">Admin Login</p>
+    </div>
+
+    {% if error %}
+    <div class="bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold p-3 rounded-xl mb-4 text-center">
+      {{ error }}
+    </div>
+    {% endif %}
+
+    <form method="POST" action="/admin/login" class="space-y-4">
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Mật khẩu</label>
+        <input type="password" name="password" id="passwordInput" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Nhập mật khẩu admin" autofocus>
+      </div>
+      <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 px-4 rounded-xl shadow-md cursor-pointer transition-all text-xs">
+        Đăng nhập
+      </button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

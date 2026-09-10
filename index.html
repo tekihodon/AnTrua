@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Viewport lock: force-correct dimensions BEFORE any layout/render -->
+  <script>
+    (function() {
+      try {
+        var m = document.createElement('meta');
+        m.setAttribute('name','viewport');
+        m.setAttribute('content','width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no');
+        var old = document.querySelector('meta[name="viewport"]');
+        (old || document.head).parentNode.insertBefore(m, old || document.head.firstChild);
+      } catch(e) {}
+    })();
+  </script>
+  <title>Quản Lý Ăn Trưa - BSV</title>
+  <!-- Nhúng Tailwind CSS bản ổn định nhất -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Chuyển tiếp mượt mà cho tất cả thay đổi trạng thái */
+    * {
+      transition: background-color 0.25s ease, border-color 0.25s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+    }
+
+    /* Ngăn hover transform gây lệch tap position trên mobile */
+    @media (hover: none) and (pointer: coarse) {
+      *:hover {
+        transform: none !important;
+      }
+      /* Vẫn cho active (tap) nhưng không giữ hover state */
+      button:active, a:active, .member-card:active, label:active {
+        transform: scale(0.97);
+      }
+    }
+
+    /* Đảm bảo fixed positioning đúng trên mobile có chrome/browser bar */
+    @supports (height: 100dvh) {
+      html, body {
+        height: 100dvh;
+      }
+    }
+
+    /* Ngăn double-tap zoom trên button/link; cải thiện tap latency trên mobile */
+    button, a, label, .member-card, input, select, textarea {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Vòng xoay tải dữ liệu */
+    .loader {
+      border-top-color: #3b82f6;
+      animation: spinner 1.2s cubic-bezier(0.68, -0.55, 0.27, 1.55) infinite;
+    }
+    @keyframes spinner {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Hiệu ứng trượt và hiện hình mượt mà cho danh sách bữa ăn */
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-slideup {
+      animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    /* Hiệu ứng nổ pháo giấy confetti khi thanh toán thành công */
+    .confetti-piece {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      background: #ffd700;
+      top: 0;
+      opacity: 0;
+      border-radius: 50%;
+      animation: confettiFall 2.5s ease-out infinite;
+    }
+    @keyframes confettiFall {
+      0% { top: -10%; opacity: 1; transform: translateX(0) rotate(0deg); }
+      100% { top: 100%; opacity: 0; transform: translateX(100px) rotate(360deg); }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen pb-16 antialiased selection:bg-blue-100">
+
+  <!-- Confetti Container (Chạy khi thanh toán thành công) -->
+  <div id="confettiContainer" class="fixed inset-0 pointer-events-none overflow-hidden z-50 hidden"></div>
+
+  <div class="max-w-2xl mx-auto px-4 py-6">
+    
+    <!-- HEADER -->
+    <header class="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 rounded-3xl shadow-xl p-6 text-white text-center mb-6 relative overflow-hidden">
+      <!-- Decor Background elements -->
+      <div class="absolute -right-10 -top-10 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
+      <div class="absolute -left-10 -bottom-10 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
+      
+      <div class="relative z-10 flex flex-col items-center">
+        <span class="inline-block text-4xl mb-2 animate-bounce">🍕</span>
+        <h1 class="text-2xl font-black tracking-wide uppercase">ĂN TRƯA BSV</h1>
+        <p class="text-blue-100 text-xs mt-1.5 font-medium tracking-wider mb-4">HỆ THỐNG ĐỐI SOÁT & THANH TOÁN TỰ ĐỘNG</p>
+        
+        <!-- Nút thêm hóa đơn trên Header -->
+        <button onclick="openAddBillModal()" class="bg-white/25 hover:bg-white/35 active:scale-95 text-white text-xs font-bold py-2.5 px-5 rounded-2xl flex items-center space-x-2 border border-white/30 backdrop-blur-md shadow-md cursor-pointer">
+          <span>➕ Thêm hóa đơn ăn mới</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- BƯỚC 1: DANH SÁCH THÀNH VIÊN -->
+    <section class="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 mb-6">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+        <div>
+          <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider">Thành viên tham gia:</h2>
+          <p class="text-xs text-slate-500 mt-0.5">Chọn tên của bạn để xem chi tiết tiền ăn</p>
+        </div>
+        
+        <!-- Ô Tìm Kiếm Nhanh -->
+        <div class="flex gap-2 w-full sm:w-auto">
+          <div class="relative flex-1 sm:min-w-[16rem]">
+            <input type="text" id="searchBar" oninput="filterMembers()" placeholder="Tìm tên thành viên..." class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-2xl pl-10 pr-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+            <span class="absolute left-3.5 top-3 text-slate-400 text-sm">🔍</span>
+          </div>
+          <button onclick="manualReload()" class="flex items-center gap-1.5 px-3 py-2.5 bg-blue-50 text-blue-600 rounded-2xl text-xs font-semibold hover:bg-blue-100 border border-blue-200 whitespace-nowrap" title="Làm mới dữ liệu">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+            <span>Reload</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Khung lưới hiển thị danh sách Thành viên -->
+      <div id="membersGrid" class="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 gap-3">
+        <!-- Được chèn động bởi JS -->
+        <div class="col-span-full py-12 flex flex-col items-center justify-center space-y-2">
+          <div class="loader ease-linear rounded-full border-3 border-t-3 border-slate-200 h-8 w-8"></div>
+          <p class="text-xs text-slate-400 font-medium">Đang kết nối cơ sở dữ liệu...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- HIỆU ỨNG TẢI DỮ LIỆU CỦA THÀNH VIÊN -->
+    <div id="loadingSection" class="hidden flex flex-col items-center justify-center py-12 space-y-3">
+      <div class="loader ease-linear rounded-full border-4 border-t-4 border-slate-200 h-10 w-10"></div>
+      <p class="text-xs text-slate-500 font-semibold tracking-wide">Đang tính toán chi tiết nợ của bạn...</p>
+    </div>
+
+    <!-- BƯỚC 2: MODAL CHI TIẾT CÔNG NỢ (Ẩn mặc định) -->
+    <div id="debtModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden opacity-0 transition-opacity duration-300">
+      <div class="bg-white rounded-3xl max-w-lg w-full shadow-2xl transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]">
+
+        <!-- Header modal + Nút đóng -->
+        <div id="debtModalHeader" class="flex items-center justify-between px-6 pt-5 pb-3 border-b border-slate-100">
+          <div class="flex items-center space-x-3">
+            <div id="userAvatar" class="w-11 h-11 rounded-2xl flex items-center justify-center text-white font-black text-sm shadow-inner uppercase tracking-wider">
+              --
+            </div>
+            <div>
+              <h2 class="text-base font-extrabold text-slate-800">Thành viên: <span id="txtSelectedUser" class="text-blue-600">--</span></h2>
+              <p class="text-xs text-slate-400 font-medium mt-0.5">Vui lòng kiểm tra kỹ các khoản nợ bên dưới</p>
+            </div>
+          </div>
+          <button onclick="closeDebtModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-all cursor-pointer">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <!-- Loading state -->
+        <div id="debtModalLoader" class="flex flex-col items-center justify-center py-12 space-y-3">
+          <div class="loader ease-linear rounded-full border-4 border-t-4 border-slate-200 h-10 w-10"></div>
+          <p class="text-xs text-slate-500 font-semibold tracking-wide">Đang tính toán chi tiết nợ của bạn...</p>
+        </div>
+
+        <!-- Scrollable body (ẩn khi loading) -->
+        <div id="debtModalBody" class="flex-1 overflow-y-auto px-6 py-4 space-y-5 hidden">
+
+          <!-- QR Chuyển Khoản -->
+          <div class="flex flex-col items-center bg-green-50 border border-green-200 rounded-2xl p-4">
+            <p class="text-xs font-bold text-green-700 uppercase tracking-wider mb-3">Quét mã QR để chuyển khoản</p>
+            <img src="https://lotusmilesevents.com/wp-content/uploads/img/qr.jpg" alt="QR Chuyển Khoản" class="w-48 h-48 object-contain rounded-xl bg-white p-2 shadow-sm">
+            <p class="text-[10px] text-green-600 font-semibold mt-2">Nhớ ghi chú: <span class="font-mono">[Tên] - ăn trưa</span></p>
+          </div>
+
+          <!-- Tổng Tiền Gốc -->
+          <div class="bg-gradient-to-br from-amber-50 to-amber-100/50 border border-amber-100 rounded-2xl p-5 flex items-center justify-between">
+            <div>
+              <p class="text-[10px] font-bold text-amber-800 uppercase tracking-wider">Tổng nợ ghi nhận trên Sheet</p>
+              <p id="txtTotalDebt" class="text-3xl font-black text-amber-600 mt-1">0 ₫</p>
+            </div>
+            <div class="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-2xl shadow-sm">💵</div>
+          </div>
+
+          <!-- Danh Sách Bữa Ăn Chưa Trả -->
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-xs font-black text-slate-400 uppercase tracking-wider">Các bữa ăn chưa trả:</h3>
+              <button id="btnToggleAll" onclick="toggleSelectAll()" class="text-xs font-bold text-blue-600 hover:text-blue-800 cursor-pointer focus:outline-none transition-all">
+                Chọn tất cả
+              </button>
+            </div>
+            <div id="unpaidItemsContainer" class="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+              <!-- Được chèn động bởi JS -->
+            </div>
+          </div>
+
+          <!-- Lịch sử thanh toán -->
+          <div class="border-t border-slate-100 pt-4">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-xs font-black text-slate-400 uppercase tracking-wider">Lịch sử thanh toán:</h3>
+              <button onclick="loadPaymentHistory()" class="text-xs font-bold text-slate-500 hover:text-slate-700 cursor-pointer transition-all">🔄 Làm mới</button>
+            </div>
+            <div id="paymentHistoryContainer" class="space-y-2 max-h-64 overflow-y-auto pr-1">
+              <div class="text-center py-6 text-xs text-slate-400">Đang tải...</div>
+            </div>
+          </div>
+
+          <!-- Thẻ Tổng Kết tiền được check -->
+          <div class="bg-slate-50 rounded-2xl p-5 flex justify-between items-center border border-slate-100">
+            <div>
+              <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Tổng tiền bạn tích chọn:</span>
+              <span class="text-[10px] text-slate-400 font-medium mt-0.5 block">Tiền này sẽ được lưu vào Logs</span>
+            </div>
+            <span id="txtSelectedTotal" class="text-2xl font-black text-blue-600">0 ₫</span>
+          </div>
+
+        </div>
+
+        <!-- Footer nút submit -->
+        <div class="px-6 pb-5 pt-3 border-t border-slate-100">
+          <button id="btnSubmit" onclick="submitForm()" disabled class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-2xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none">
+            Xác nhận thanh toán các mục đã chọn
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Modal Thêm Hóa Đơn Mới (Ẩn mặc định) -->
+  <div id="addBillModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden opacity-0 transition-opacity duration-300 overflow-x-hidden">
+    <div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh] overflow-y-auto">
+      <h3 class="text-lg font-black text-slate-800 mb-4 flex items-center space-x-2">
+        <span>📝 Thêm hóa đơn mới</span>
+      </h3>
+      
+      <div class="space-y-4 pr-1 pb-4">
+        <!-- Tên món ăn -->
+        <div>
+          <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Tên món ăn / dịch vụ</label>
+          <input type="text" id="billDishName" placeholder="Ví dụ: Highlands Coffee, Lẩu thái..." class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        </div>
+        
+        <!-- Tổng tiền & Ngày -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Tổng tiền (VND)</label>
+            <input type="number" id="billTotalCost" placeholder="Ví dụ: 154000" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Ngày hóa đơn</label>
+            <input type="date" id="billDate" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          </div>
+        </div>
+        
+        <!-- Bổ sung người lạ -->
+        <div>
+          <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Bổ sung người lạ (Nếu có)</label>
+          <div class="flex flex-col sm:flex-row gap-2">
+            <input type="text" id="strangerNameInput" placeholder="Nhập tên người lạ..." class="flex-1 w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            <button type="button" onclick="addStrangerToList()" class="bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold px-4 py-2.5 rounded-xl cursor-pointer transition-all whitespace-nowrap">Thêm</button>
+          </div>
+        </div>
+        
+        <!-- Người tham gia ăn -->
+        <div>
+          <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Thành viên tham gia ăn</label>
+          <div id="billParticipantsContainer" class="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-44 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-150">
+            <!-- Chèn động -->
+          </div>
+        </div>
+      </div>
+      
+      <!-- Nút điều hướng biểu mẫu -->
+      <div class="flex space-x-3 mt-6 pt-3 border-t border-slate-100">
+        <button onclick="closeAddBillModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold py-3.5 px-4 rounded-xl cursor-pointer transition-all">
+          Hủy bỏ
+        </button>
+        <button id="btnSubmitBill" onclick="submitNewBill()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-3.5 px-4 rounded-xl shadow-md cursor-pointer transition-all">
+          Xác nhận thêm
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Alert Modal thay cho Alert Browser -->
+  <div id="customModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden opacity-0 transition-opacity duration-300">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl transform scale-95 transition-transform duration-300">
+      <div id="modalIcon" class="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-4 bg-blue-50">⚠️</div>
+      <h3 id="modalTitle" class="text-base font-bold text-slate-800 text-center mb-1">Thông báo</h3>
+      <p id="modalContent" class="text-xs text-slate-500 text-center leading-relaxed mb-6">Nội dung thông báo ở đây.</p>
+      <button onclick="closeModal()" class="w-full bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold py-3.5 px-4 rounded-xl shadow-md cursor-pointer transition-all">
+        Đóng
+      </button>
+    </div>
+  </div>
+
+  <!-- Toast Notification Trượt Mượt Mà -->
+  <div id="toast" class="fixed bottom-5 right-5 transform translate-y-20 opacity-0 bg-emerald-600 text-white px-5 py-4 rounded-2xl shadow-xl transition-all duration-300 flex items-center space-x-3 text-sm font-semibold z-50">
+    <span class="text-lg">🎉</span>
+    <span id="toastMessage">Ghi nhận giao dịch thành công!</span>
+  </div>
+
+  <!-- Client-side Scripts -->
+  <script>
+    let currentUnpaidItems = [];
+    let currentSelectedUser = "";
+    let isAllSelected = false;
+    let listAllMembers = []; // Lưu trữ tất cả thành viên { name, debt }
+    let addedStrangers = []; // Danh sách người lạ được thêm tạm thời trong form
+
+    const gradientColors = [
+      'from-pink-500 to-rose-500',
+      'from-purple-500 to-indigo-500',
+      'from-blue-500 to-cyan-500',
+      'from-teal-500 to-emerald-500',
+      'from-amber-500 to-orange-500',
+      'from-indigo-500 to-violet-500'
+    ];
+
+    function getGradientClass(name) {
+      let hash = 0;
+      for (let i = 0; i < name.length; i++) {
+        hash = name.charCodeAt(i) + ((hash << 5) - hash);
+      }
+      const index = Math.abs(hash) % gradientColors.length;
+      return gradientColors[index];
+    }
+
+    function getInitials(name) {
+      const parts = name.trim().split(/\s+/);
+      if (parts.length >= 2) {
+        return (parts[parts.length - 2][0] + parts[parts.length - 1][0]).toUpperCase();
+      }
+      return name.substring(0, 2).toUpperCase();
+    }
+
+    // Tải và hiển thị danh sách thành viên lên màn hình
+    function loadMembersGrid() {
+      const grid = document.getElementById("membersGrid");
+      grid.innerHTML = `
+        <div class="col-span-full py-12 flex flex-col items-center justify-center space-y-2">
+          <div class="loader ease-linear rounded-full border-3 border-t-3 border-slate-200 h-8 w-8"></div>
+          <p class="text-xs text-slate-400 font-medium">Đang cập nhật thông tin thành viên...</p>
+        </div>
+      `;
+
+      fetch("/api/members")
+      .then(r => r.json())
+      .then(members => {
+        listAllMembers = members || [];
+        grid.innerHTML = "";
+
+        if (listAllMembers.length > 0) {
+          listAllMembers.forEach(member => {
+            const card = document.createElement("button");
+            card.className = "member-card bg-slate-50 hover:bg-slate-100 hover:shadow-md hover:scale-[1.03] border border-slate-200/60 text-slate-700 font-bold p-3.5 rounded-2xl transition-all truncate text-center cursor-pointer flex flex-col items-center justify-center space-y-2.5 relative";
+            card.dataset.name = member.name.toLowerCase();
+            card.id = `card-${member.name.replace(/\s+/g, '')}`;
+
+            const debtBadge = document.createElement("div");
+            debtBadge.className = `w-full py-1.5 px-2 rounded-xl text-center text-[10px] font-extrabold tracking-wide shadow-sm font-mono ${member.debt > 0 ? 'bg-rose-100 text-rose-700 border border-rose-200/50' : 'bg-emerald-100 text-emerald-700 border border-emerald-200/50'}`;
+            debtBadge.textContent = member.debt > 0 ? `Nợ: ${formatVND(member.debt)}` : "Hết nợ 🎉";
+
+            const nameSpan = document.createElement("span");
+            nameSpan.className = "text-xs tracking-tight truncate w-full";
+            nameSpan.textContent = member.name;
+
+            card.appendChild(debtBadge);
+            card.appendChild(nameSpan);
+            card.onclick = function() { selectUser(member.name, card); };
+            grid.appendChild(card);
+          });
+
+          if (currentSelectedUser) {
+            const cardId = `card-${currentSelectedUser.replace(/\s+/g, '')}`;
+            const activeCard = document.getElementById(cardId);
+            if (activeCard) {
+              activeCard.classList.remove("bg-slate-50", "text-slate-700", "border-slate-200/60");
+              activeCard.classList.add("bg-gradient-to-br", "from-blue-600", "to-indigo-600", "text-white", "border-transparent", "shadow-lg", "scale-[1.04]", "active-card");
+            }
+          }
+        } else {
+          grid.innerHTML = '<p class="text-slate-400 text-xs col-span-full text-center py-6">Không tìm thấy thành viên tại cột B.</p>';
+        }
+      })
+      .catch(err => {
+        grid.innerHTML = `<p class="text-red-400 text-xs col-span-full text-center py-6">Lỗi: ${err}</p>`;
+      });
+    }
+
+    // Tự động tải danh sách thành viên lúc mở trang
+    document.addEventListener("DOMContentLoaded", function() {
+      loadMembersGrid();
+    });
+
+    // Tải lại dữ liệu khi người dùng quay lại trang từ bfcache (phím back của trình duyệt)
+    window.addEventListener("pageshow", function(event) {
+      if (event.persisted) {
+        loadMembersGrid();
+      }
+    });
+
+    // Debounce: chỉ load lại tối thiểu 30s/lần, tránh reload liên tục khi switch tab
+    var lastReloadTime = 0;
+    var reloadDebounceMs = 30000;
+
+    function debouncedReload() {
+      var now = Date.now();
+      if (now - lastReloadTime < reloadDebounceMs) {
+        return; // Quá sớm, bỏ qua
+      }
+      lastReloadTime = now;
+      loadMembersGrid();
+    }
+
+    // Tải lại dữ liệu khi tab chuyển từ ẩn sang hiện (switch tab) — đã debounce
+    document.addEventListener("visibilitychange", function() {
+      if (!document.hidden) {
+        debouncedReload();
+      }
+    });
+
+    // Nút Reload thủ công trên giao diện
+    function manualReload() {
+      lastReloadTime = 0; // Bỏ qua debounce
+      loadMembersGrid();
+      showToast("Đang làm mới dữ liệu...");
+    }
+
+    // Tính năng lọc tìm kiếm thành viên
+    function filterMembers() {
+      const query = document.getElementById("searchBar").value.toLowerCase().trim();
+      const cards = document.querySelectorAll(".member-card");
+      cards.forEach(card => {
+        if (card.dataset.name.includes(query)) {
+          card.classList.remove("hidden");
+        } else {
+          card.classList.add("hidden");
+        }
+      });
+    }
+
+    // Mở modal chi tiết công nợ
+    function openDebtModal() {
+      const modal = document.getElementById("debtModal");
+      modal.classList.remove("hidden");
+      setTimeout(() => {
+        modal.classList.remove("opacity-0");
+        modal.querySelector("div").classList.remove("scale-95");
+      }, 50);
+    }
+
+    // Đóng modal chi tiết công nợ
+    function closeDebtModal() {
+      const modal = document.getElementById("debtModal");
+      modal.classList.add("opacity-0");
+      modal.querySelector("div").classList.add("scale-95");
+      setTimeout(() => {
+        modal.classList.add("hidden");
+      }, 300);
+    }
+
+    // Xử lý khi bấm chọn thành viên
+    function selectUser(name, cardElement) {
+      currentSelectedUser = name;
+      isAllSelected = false;
+      document.getElementById("btnToggleAll").textContent = "Chọn tất cả";
+
+      // Reset style các card khác
+      document.querySelectorAll(".member-card").forEach(el => {
+        el.classList.remove("bg-gradient-to-br", "from-blue-600", "to-indigo-600", "text-white", "border-transparent", "shadow-lg", "scale-[1.04]", "active-card");
+        el.classList.add("bg-slate-50", "text-slate-700", "border-slate-200/60");
+      });
+
+      // Tạo điểm nhấn cho Card đang hoạt động
+      cardElement.classList.remove("bg-slate-50", "text-slate-700", "border-slate-200/60");
+      cardElement.classList.add("bg-gradient-to-br", "from-blue-600", "to-indigo-600", "text-white", "border-transparent", "shadow-lg", "scale-[1.04]", "active-card");
+
+      const modal = document.getElementById("debtModal");
+
+      // Reset modal state
+      modal.classList.add("opacity-0");
+      modal.querySelector("div").classList.add("scale-95");
+
+      // Mở modal
+      openDebtModal();
+
+      // Ẩn body, hiện loader
+      document.getElementById("debtModalLoader").classList.remove("hidden");
+      document.getElementById("debtModalBody").classList.add("hidden");
+
+      // Đồng bộ hóa Avatar & Tên lên chi tiết công nợ
+      const avatarDiv = document.getElementById("userAvatar");
+      avatarDiv.className = `w-11 h-11 rounded-2xl flex items-center justify-center text-white font-black text-sm shadow-inner uppercase tracking-wider bg-gradient-to-br ${getGradientClass(name)}`;
+      avatarDiv.textContent = getInitials(name);
+      document.getElementById("txtSelectedUser").textContent = name;
+
+      fetch(`/api/members/${encodeURIComponent(name)}/debt-details`)
+        .then(r => r.json())
+        .then(result => {
+          document.getElementById("debtModalLoader").classList.add("hidden");
+          if (!result || result.error) {
+            document.getElementById("debtModalBody").classList.remove("hidden");
+            document.getElementById("debtModalHeader").classList.add("hidden");
+            showModal("⚠️ Cảnh báo", "Không thể truy xuất thông tin của bạn từ hệ thống.", "❌");
+            closeDebtModal();
+            return;
+          }
+
+          document.getElementById("debtModalBody").classList.remove("hidden");
+          document.getElementById("txtTotalDebt").textContent = formatVND(result.totalDebt);
+          currentUnpaidItems = result.unpaidItems;
+
+          renderUnpaidItems(result.unpaidItems);
+          calculateSelectedTotal();
+          loadPaymentHistory();
+        })
+        .catch(err => {
+          document.getElementById("debtModalLoader").classList.add("hidden");
+          showModal("❌ Đã xảy ra lỗi", "Lỗi nạp dữ liệu: " + err, "⛔");
+          closeDebtModal();
+        });
+  }
+
+  function loadPaymentHistory() {
+    if (!currentSelectedUser) return;
+
+    const container = document.getElementById("paymentHistoryContainer");
+    container.innerHTML = '<div class="text-center py-6 text-xs text-slate-400">Đang tải...</div>';
+
+    fetch(`/api/members/${encodeURIComponent(currentSelectedUser)}/payments`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data || !data.success) {
+          container.innerHTML = '<div class="text-center py-6 text-xs text-slate-400">Không có lịch sử</div>';
+          return;
+        }
+
+        const payments = data.payments || [];
+        if (payments.length === 0) {
+          container.innerHTML = '<div class="text-center py-6 text-xs text-slate-400">Chưa có thanh toán nào</div>';
+          return;
+        }
+
+        container.innerHTML = payments.map(p => `
+          <div class="flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200/70">
+            <div class="min-w-0">
+              <p class="text-xs font-bold text-slate-700 truncate">${p.dishName}</p>
+              <p class="text-[10px] text-slate-400 mt-0.5">${p.date}</p>
+            </div>
+            <div class="text-right flex items-center space-x-3">
+              <div>
+                <p class="text-xs font-extrabold text-slate-800">${formatVND(p.amount)}</p>
+                <p class="text-[10px] text-slate-400">${formatDateTime(p.createdAt)}</p>
+              </div>
+              <button onclick="revertMyPayment('${p.id}')" class="text-amber-600 hover:text-amber-800 text-[10px] font-bold cursor-pointer transition-all">Hoàn tác</button>
+            </div>
+          </div>
+        `).join("");
+      })
+      .catch(() => {
+        container.innerHTML = '<div class="text-center py-6 text-xs text-slate-400">Lỗi tải dữ liệu</div>';
+      });
+  }
+
+  function revertMyPayment(paymentId) {
+    if (!confirm("Hoàn tác khoản thanh toán này?")) return;
+
+    fetch(`/api/payments/${paymentId}`, { method: "DELETE" })
+      .then(r => r.json())
+      .then(res => {
+        if (res.success) {
+          showToast("Hoàn tác thành công!");
+          loadPaymentHistory();
+          loadMembersGrid();
+          const cardId = `card-${currentSelectedUser.replace(/\s+/g, '')}`;
+          const activeCard = document.getElementById(cardId);
+          if (activeCard) {
+            selectUser(currentSelectedUser, activeCard);
+          }
+        } else {
+          showModal("❌ Lỗi", "Hoàn tác thất bại: " + res.message, "⚠️");
+        }
+      })
+      .catch(err => {
+        showModal("❌ Lỗi", "Lỗi: " + err, "⛔");
+      });
+  }
+
+  function formatDateTime(iso) {
+    if (!iso) return '--';
+    const d = new Date(iso);
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+    // Hiển thị danh sách các món nợ kèm animation trượt
+    function renderUnpaidItems(items) {
+      const container = document.getElementById("unpaidItemsContainer");
+      container.innerHTML = "";
+      
+      if (items.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-8 px-4 bg-emerald-50 rounded-2xl border border-dashed border-emerald-200 animate-slideup">
+            <span class="text-3xl block mb-1">🎉</span>
+            <p class="text-xs font-bold text-emerald-800">TẤT CẢ ĐÃ THANH TOÁN XONG!</p>
+            <p class="text-[10px] text-emerald-600/80 mt-0.5">Bạn không có khoản nợ ăn trưa nào chưa trả.</p>
+          </div>
+        `;
+        document.getElementById("btnToggleAll").classList.add("hidden");
+        return;
+      }
+      
+      document.getElementById("btnToggleAll").classList.remove("hidden");
+
+      items.forEach((item, index) => {
+        const label = document.createElement("label");
+        label.className = "flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 rounded-2xl border border-slate-200/70 cursor-pointer animate-slideup relative overflow-hidden";
+        label.style.animationDelay = `${index * 0.05}s`;
+        label.id = `item-row-${index}`;
+        
+        label.innerHTML = `
+          <div class="flex items-center space-x-3 max-w-[70%]">
+            <input type="checkbox" value="${index}" onchange="onItemCheckChange(${index})" class="w-5 h-5 text-blue-600 border-slate-300 rounded focus:ring-blue-500 accent-blue-600 cursor-pointer">
+            <span class="text-xs font-bold text-slate-700 truncate">${item.itemName}</span>
+          </div>
+          <span class="text-xs font-extrabold text-slate-800">(${formatVND(item.amount)})</span>
+        `;
+        container.appendChild(label);
+      });
+    }
+
+    // Hiệu ứng khi click tích chọn món nợ
+    function onItemCheckChange(index) {
+      const row = document.getElementById(`item-row-${index}`);
+      const cb = row.querySelector('input[type="checkbox"]');
+      
+      if (cb.checked) {
+        row.classList.remove("bg-slate-50", "border-slate-200/70");
+        row.classList.add("bg-blue-50/50", "border-blue-400", "shadow-sm");
+      } else {
+        row.classList.remove("bg-blue-50/50", "border-blue-400", "shadow-sm");
+        row.classList.add("bg-slate-50", "border-slate-200/70");
+      }
+      calculateSelectedTotal();
+    }
+
+    // Tính năng Chọn tất cả / Bỏ chọn tất cả
+    function toggleSelectAll() {
+      const checkboxes = document.querySelectorAll('#unpaidItemsContainer input[type="checkbox"]');
+      isAllSelected = !isAllSelected;
+      
+      checkboxes.forEach(cb => {
+        cb.checked = isAllSelected;
+        onItemCheckChange(parseInt(cb.value));
+      });
+
+      document.getElementById("btnToggleAll").textContent = isAllSelected ? "Bỏ chọn tất cả" : "Chọn tất cả";
+      calculateSelectedTotal();
+    }
+
+    // Tính toán tổng tiền được tick chọn thanh toán
+    function calculateSelectedTotal() {
+      const checkboxes = document.querySelectorAll('#unpaidItemsContainer input[type="checkbox"]');
+      let total = 0;
+      let hasChecked = false;
+      
+      checkboxes.forEach(cb => {
+        if (cb.checked) {
+          hasChecked = true;
+          total += currentUnpaidItems[parseInt(cb.value)].amount;
+        }
+      });
+      
+      document.getElementById("txtSelectedTotal").textContent = formatVND(total);
+      document.getElementById("btnSubmit").disabled = !hasChecked;
+    }
+
+    // Gửi biểu mẫu xác nhận thanh toán
+    function submitForm() {
+      const checkboxes = document.querySelectorAll('#unpaidItemsContainer input[type="checkbox"]');
+      const selectedItems = [];
+      
+      checkboxes.forEach(cb => {
+        if (cb.checked) {
+          selectedItems.push(currentUnpaidItems[parseInt(cb.value)]);
+        }
+      });
+      
+      if (selectedItems.length === 0 || !currentSelectedUser) return;
+      
+    const btn = document.getElementById("btnSubmit");
+    btn.disabled = true;
+    btn.textContent = "Đang xử lý dữ liệu...";
+
+    fetch("/api/payments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberName: currentSelectedUser, mealIds: selectedItems.map(i => i.mealId) })
+    })
+      .then(r => r.json())
+      .then(response => {
+        if (response.success) {
+          triggerConfetti();
+          showToast(`Thanh toán thành công! Đã ghi log ${formatVND(response.totalPaid)}`);
+
+          loadMembersGrid();
+          closeDebtModal();
+        } else {
+          showModal("❌ Lỗi thanh toán", "Gặp lỗi lưu dữ liệu: " + response.message, "⚠️");
+          btn.disabled = false;
+          btn.textContent = "Xác nhận thanh toán các mục đã chọn";
+        }
+      })
+      .catch(err => {
+        showModal("❌ Lỗi Server", "Lỗi máy chủ: " + err, "⛔");
+        btn.disabled = false;
+        btn.textContent = "Xác nhận thanh toán các mục đã chọn";
+      });
+    }
+
+    // --- LOGIC MODAL THÊM HÓA ĐƠN MỚI ---
+    
+    // Mở biểu mẫu thêm hóa đơn
+    function openAddBillModal() {
+      const modal = document.getElementById("addBillModal");
+      
+      // Xóa sạch form và tự động điền ngày hôm nay
+      document.getElementById("billDishName").value = "";
+      document.getElementById("billTotalCost").value = "";
+      document.getElementById("strangerNameInput").value = "";
+      document.getElementById("billDate").value = new Date().toISOString().substring(0, 10);
+      
+      addedStrangers = [];
+      renderBillParticipants();
+      
+      modal.classList.remove("hidden");
+      setTimeout(() => {
+        modal.classList.remove("opacity-0");
+        modal.querySelector("div").classList.remove("scale-95");
+      }, 50);
+    }
+
+    // Đóng biểu mẫu thêm hóa đơn
+    function closeAddBillModal() {
+      const modal = document.getElementById("addBillModal");
+      modal.classList.add("opacity-0");
+      modal.querySelector("div").classList.add("scale-95");
+      setTimeout(() => {
+        modal.classList.add("hidden");
+      }, 300);
+    }
+
+    // Hiển thị danh sách thành viên tích chọn cùng ăn trong Modal
+    // ĐÃ SỬA: Loại bỏ thuộc tính "checked" mặc định để các ô trống không được tích chọn sẵn
+    function renderBillParticipants() {
+      const container = document.getElementById("billParticipantsContainer");
+      container.innerHTML = "";
+      
+      // Kết hợp thành viên chính và người lạ tạm thời
+      const allToRender = listAllMembers.map(m => m.name).concat(addedStrangers);
+      
+      allToRender.forEach(name => {
+        const label = document.createElement("label");
+        label.className = "flex items-center space-x-2.5 p-2 bg-white rounded-xl border border-slate-200/60 cursor-pointer text-xs font-semibold hover:bg-slate-50 transition-colors min-w-0";
+        label.innerHTML = `
+          <input type="checkbox" value="${name}" class="bill-participant-cb w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 accent-blue-600 cursor-pointer flex-shrink-0">
+          <span class="truncate text-slate-700" title="${name}">${name}</span>
+        `;
+        container.appendChild(label);
+      });
+    }
+
+    // Xử lý thêm người lạ động trong Modal
+    function addStrangerToList() {
+      const input = document.getElementById("strangerNameInput");
+      const name = input.value.trim();
+      
+      if (!name) {
+        showToast("Vui lòng nhập tên người lạ!");
+        return;
+      }
+      
+      // Kiểm tra trùng lặp
+      const alreadyInMembers = listAllMembers.some(m => m.name.toLowerCase() === name.toLowerCase());
+      const alreadyInStrangers = addedStrangers.some(s => s.toLowerCase() === name.toLowerCase());
+      
+      if (alreadyInMembers || alreadyInStrangers) {
+        showToast("Tên này đã tồn tại trong danh sách!");
+        return;
+      }
+      
+      addedStrangers.push(name);
+      input.value = "";
+      renderBillParticipants();
+      showToast(`Đã thêm tạm thời: ${name}`);
+    }
+
+    // Gửi dữ liệu hóa đơn mới lên máy chủ Google
+    function submitNewBill() {
+      const dishName = document.getElementById("billDishName").value.trim();
+      const totalCost = parseFloat(document.getElementById("billTotalCost").value);
+      const date = document.getElementById("billDate").value;
+      
+      if (!dishName) {
+        showToast("Vui lòng điền tên món ăn!");
+        return;
+      }
+      if (isNaN(totalCost) || totalCost <= 0) {
+        showToast("Vui lòng nhập tổng số tiền hợp lệ!");
+        return;
+      }
+      if (!date) {
+        showToast("Vui lòng chọn ngày!");
+        return;
+      }
+      
+      const checkboxes = document.querySelectorAll(".bill-participant-cb");
+      const participants = [];
+      checkboxes.forEach(cb => {
+        if (cb.checked) {
+          participants.push(cb.value);
+        }
+      });
+      
+      if (participants.length === 0) {
+        showToast("Vui lòng chọn ít nhất 1 thành viên tham gia ăn!");
+        return;
+      }
+      
+      // Phân tách thành viên chính thức và người lạ mới thêm
+      const regularParticipants = participants.filter(p => !addedStrangers.includes(p));
+      const strangers = participants.filter(p => addedStrangers.includes(p));
+      
+      const btn = document.getElementById("btnSubmitBill");
+      btn.disabled = true;
+      btn.textContent = "Đang xử lý...";
+
+      fetch("/api/meals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dishName, totalCost, date, participants: regularParticipants, strangers })
+      })
+        .then(r => r.json())
+        .then(res => {
+          btn.disabled = false;
+          btn.textContent = "Xác nhận thêm";
+
+          if (res.success) {
+            closeAddBillModal();
+            triggerConfetti();
+            showToast("Thêm hóa đơn và đồng bộ cột thành công! 🎉");
+            loadMembersGrid();
+          } else {
+            showModal("❌ Lỗi hệ thống", res.message, "⚠️");
+          }
+        })
+        .catch(err => {
+          btn.disabled = false;
+          btn.textContent = "Xác nhận thêm";
+          showModal("❌ Lỗi kết nối", "Lỗi: " + err, "⛔");
+        });
+    }
+
+    // --- TIỆN ÍCH CHUNG ---
+    function formatVND(amount) {
+      return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+    }
+
+    // Hiệu ứng pháo hoa giấy confetti
+    function triggerConfetti() {
+      const container = document.getElementById("confettiContainer");
+      container.classList.remove("hidden");
+      container.innerHTML = "";
+      
+      for (let i = 0; i < 50; i++) {
+        const piece = document.createElement("div");
+        piece.className = "confetti-piece";
+        piece.style.left = `${Math.random() * 100}%`;
+        piece.style.backgroundColor = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"][Math.floor(Math.random() * 6)];
+        piece.style.animationDelay = `${Math.random() * 1.5}s`;
+        piece.style.transform = `scale(${Math.random() * 0.8 + 0.5})`;
+        container.appendChild(piece);
+      }
+      
+      setTimeout(() => {
+        container.classList.add("hidden");
+      }, 3500);
+    }
+
+    // Hiển thị modal thông báo tùy chỉnh
+    function showModal(title, content, icon = "⚠️") {
+      const modal = document.getElementById("customModal");
+      document.getElementById("modalTitle").textContent = title;
+      document.getElementById("modalContent").textContent = content;
+      document.getElementById("modalIcon").textContent = icon;
+
+      modal.classList.remove("hidden");
+      setTimeout(() => {
+        modal.classList.remove("opacity-0");
+        modal.querySelector("div").classList.remove("scale-95");
+      }, 50);
+    }
+
+    function closeModal() {
+      const modal = document.getElementById("customModal");
+      modal.classList.add("opacity-0");
+      modal.querySelector("div").classList.add("scale-95");
+      setTimeout(() => {
+        modal.classList.add("hidden");
+      }, 300);
+    }
+
+    // Hiển thị Toast thông báo nhanh ở góc màn hình
+    function showToast(message) {
+      const toast = document.getElementById("toast");
+      document.getElementById("toastMessage").textContent = message;
+      
+      toast.classList.remove("translate-y-20", "opacity-0");
+      toast.classList.add("translate-y-0", "opacity-100");
+
+      setTimeout(() => {
+        toast.classList.remove("translate-y-0", "opacity-100");
+        toast.classList.add("translate-y-20", "opacity-0");
+      }, 4500);
+    }
+  </script>
+</body>
+</html>

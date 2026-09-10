@@ -1,0 +1,817 @@
+{% extends "base.html" %}
+{% block title %}Admin - Ăn Trưa BSV{% endblock %}
+{% block content %}
+
+<div class="max-w-6xl mx-auto px-4 py-6">
+
+  <!-- ADMIN HEADER -->
+  <header class="bg-slate-900 rounded-2xl shadow-lg p-6 text-white mb-6 flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-black tracking-wide">🔧 ADMIN - ĂN TRƯA BSV</h1>
+      <p class="text-slate-400 text-xs mt-1 tracking-wider">BÁO CÁO & QUẢN LÝ</p>
+    </div>
+    <a href="/admin/logout" class="bg-rose-600 hover:bg-rose-700 active:scale-95 text-white text-xs font-bold py-2.5 px-4 rounded-xl shadow-md cursor-pointer transition-all">Đăng xuất</a>
+  </header>
+
+  <!-- TABS -->
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 mb-6 overflow-hidden">
+    <div class="flex border-b border-slate-200 overflow-x-auto">
+      <button onclick="switchTab('dashboard')" data-tab="dashboard" class="tab-btn flex-1 min-w-[100px] py-3.5 text-xs font-bold text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-all cursor-pointer">📊 Tổng quan</button>
+      <button onclick="switchTab('members')" data-tab="members" class="tab-btn flex-1 min-w-[100px] py-3.5 text-xs font-bold text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-all cursor-pointer">👥 Thành viên</button>
+      <button onclick="switchTab('meals')" data-tab="meals" class="tab-btn flex-1 min-w-[100px] py-3.5 text-xs font-bold text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-all cursor-pointer">🍽️ Hóa đơn</button>
+      <button onclick="switchTab('payments')" data-tab="payments" class="tab-btn flex-1 min-w-[100px] py-3.5 text-xs font-bold text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-all cursor-pointer">💳 Thanh toán</button>
+      <button onclick="switchTab('logs')" data-tab="logs" class="tab-btn flex-1 min-w-[100px] py-3.5 text-xs font-bold text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-all cursor-pointer">📋 Nhật ký</button>
+    </div>
+  </div>
+
+  <!-- DASHBOARD TAB -->
+  <section id="tab-dashboard" class="tab-section">
+    <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Tổng quan</h2>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Số bữa ăn</p>
+        <p id="statMeals" class="text-3xl font-black text-slate-800 mt-1">--</p>
+      </div>
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tổng nợ</p>
+        <p id="statDebt" class="text-3xl font-black text-rose-600 mt-1">--</p>
+      </div>
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Đã thu tháng</p>
+        <p id="statPaid" class="text-3xl font-black text-emerald-600 mt-1">--</p>
+      </div>
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Thành viên</p>
+        <p id="statMembers" class="text-3xl font-black text-blue-600 mt-1">--</p>
+      </div>
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tổng nợ (không tính Đức)</p>
+        <p id="statDucDebt" class="text-3xl font-black text-amber-600 mt-1">--</p>
+      </div>
+    </div>
+
+    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Giao dịch gần đây</h3>
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div id="recentTransactions" class="divide-y divide-slate-100">
+        <div class="py-8 text-center text-xs text-slate-400">Đang tải...</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MEMBERS TAB -->
+  <section id="tab-members" class="tab-section hidden">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider">Quản lý thành viên</h2>
+      <button onclick="openAddMemberModal()" class="text-xs font-bold text-blue-600 hover:text-blue-800 cursor-pointer">+ Thêm thành viên</button>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs">
+          <thead>
+            <tr class="bg-slate-50 border-b border-slate-200">
+              <th class="px-4 py-3 text-left font-bold text-slate-500 uppercase tracking-wider">Tên</th>
+              <th class="px-4 py-3 text-right font-bold text-slate-500 uppercase tracking-wider">Nợ</th>
+              <th class="px-4 py-3 text-center font-bold text-slate-500 uppercase tracking-wider">Bữa ăn</th>
+              <th class="px-4 py-3 text-center font-bold text-slate-500 uppercase tracking-wider">Thanh toán</th>
+              <th class="px-4 py-3 text-left font-bold text-slate-500 uppercase tracking-wider">Ngày tạo</th>
+              <th class="px-4 py-3 text-center font-bold text-slate-500 uppercase tracking-wider">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="membersTableBody">
+            <tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">Đang tải...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- MEALS TAB -->
+  <section id="tab-meals" class="tab-section hidden">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider">Quản lý hóa đơn</h2>
+      <button onclick="loadMeals()" class="text-xs font-bold text-blue-600 hover:text-blue-800 cursor-pointer">🔄 Làm mới</button>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs">
+          <thead>
+            <tr class="bg-slate-50 border-b border-slate-200">
+              <th class="px-4 py-3 text-left font-bold text-slate-500 uppercase tracking-wider">Ngày</th>
+              <th class="px-4 py-3 text-left font-bold text-slate-500 uppercase tracking-wider">Món</th>
+              <th class="px-4 py-3 text-right font-bold text-slate-500 uppercase tracking-wider">Tổng tiền</th>
+              <th class="px-4 py-3 text-right font-bold text-slate-500 uppercase tracking-wider">Người ăn</th>
+              <th class="px-4 py-3 text-center font-bold text-slate-500 uppercase tracking-wider">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="mealsTableBody">
+            <tr><td colspan="5" class="px-4 py-8 text-center text-slate-400">Đang tải...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- PAYMENTS TAB -->
+  <section id="tab-payments" class="tab-section hidden">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider">Hoàn tác thanh toán</h2>
+      <button onclick="loadPayments()" class="text-xs font-bold text-blue-600 hover:text-blue-800 cursor-pointer">🔄 Làm mới</button>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
+      <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <div>
+          <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Từ ngày</label>
+          <input type="date" id="payDateFrom" onchange="loadPayments()" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Đến ngày</label>
+          <input type="date" id="payDateTo" onchange="loadPayments()" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Món</label>
+          <input type="text" id="payDish" oninput="loadPayments()" placeholder="Tên món..." class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Sắp xếp</label>
+          <select id="paySort" onchange="loadPayments()" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            <option value="desc">Mới nhất</option>
+            <option value="asc">Cũ nhất</option>
+          </select>
+        </div>
+        <div class="flex items-end">
+          <button onclick="resetPaymentFilters()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold py-2 rounded-lg cursor-pointer transition-all">Xóa lọc</button>
+        </div>
+      </div>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs">
+          <thead>
+            <tr class="bg-slate-50 border-b border-slate-200">
+              <th class="px-4 py-3 text-left font-bold text-slate-500 uppercase tracking-wider">Thành viên</th>
+              <th class="px-4 py-3 text-left font-bold text-slate-500 uppercase tracking-wider">Món</th>
+              <th class="px-4 py-3 text-right font-bold text-slate-500 uppercase tracking-wider">Số tiền</th>
+              <th class="px-4 py-3 text-left font-bold text-slate-500 uppercase tracking-wider">Ngày ăn</th>
+              <th class="px-4 py-3 text-left font-bold text-slate-500 uppercase tracking-wider">Thời gian TT</th>
+              <th class="px-4 py-3 text-center font-bold text-slate-500 uppercase tracking-wider">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="paymentsTableBody">
+            <tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">Đang tải...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- LOGS TAB -->
+  <section id="tab-logs" class="tab-section hidden">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider">Nhật ký hoạt động</h2>
+      <button onclick="loadLogs()" class="text-xs font-bold text-blue-600 hover:text-blue-800 cursor-pointer">🔄 Làm mới</button>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
+      <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <div>
+          <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Từ ngày</label>
+          <input type="date" id="logDateFrom" onchange="loadLogs()" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Đến ngày</label>
+          <input type="date" id="logDateTo" onchange="loadLogs()" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Hành động</label>
+          <input type="text" id="logAction" oninput="loadLogs()" placeholder="Ví dụ: payment..." class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Sắp xếp</label>
+          <select id="logSort" onchange="loadLogs()" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            <option value="desc">Mới nhất</option>
+            <option value="asc">Cũ nhất</option>
+          </select>
+        </div>
+        <div class="flex items-end">
+          <button onclick="resetLogFilters()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold py-2 rounded-lg cursor-pointer transition-all">Xóa lọc</button>
+        </div>
+      </div>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs">
+          <thead>
+            <tr class="bg-slate-50 border-b border-slate-200">
+              <th class="px-4 py-3 text-left font-bold text-slate-500 uppercase tracking-wider">Thành viên</th>
+              <th class="px-4 py-3 text-left font-bold text-slate-500 uppercase tracking-wider">Hành động</th>
+              <th class="px-4 py-3 text-left font-bold text-slate-500 uppercase tracking-wider">Chi tiết</th>
+              <th class="px-4 py-3 text-right font-bold text-slate-500 uppercase tracking-wider">Số tiền</th>
+              <th class="px-4 py-3 text-left font-bold text-slate-500 uppercase tracking-wider">Thời gian</th>
+            </tr>
+          </thead>
+          <tbody id="logsTableBody">
+            <tr><td colspan="5" class="px-4 py-8 text-center text-slate-400">Đang tải...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- EDIT MEAL MODAL -->
+<div id="editMealModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden opacity-0 transition-opacity duration-300">
+  <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh] overflow-y-auto">
+    <h3 class="text-lg font-black text-slate-800 mb-4 flex items-center space-x-2">✏️ Sửa hóa đơn</h3>
+
+    <input type="hidden" id="editMealId">
+
+    <div class="space-y-4 pr-1 pb-4">
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Tên món ăn</label>
+        <input type="text" id="editDishName" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Tổng tiền (VND)</label>
+          <input type="number" id="editTotalCost" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Ngày</label>
+          <input type="date" id="editDate" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Người tham gia ăn</label>
+        <div id="editParticipantsContainer" class="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-200"></div>
+      </div>
+    </div>
+
+    <div class="flex space-x-3 mt-6 pt-3 border-t border-slate-100">
+      <button onclick="closeEditMealModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold py-3.5 px-4 rounded-xl cursor-pointer transition-all">Hủy</button>
+      <button id="btnSaveEdit" onclick="saveEditMeal()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-3.5 px-4 rounded-xl shadow-md cursor-pointer transition-all">Lưu</button>
+    </div>
+  </div>
+</div>
+
+<!-- MEMBER MODAL -->
+<div id="memberModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden opacity-0 transition-opacity duration-300">
+  <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl transform scale-95 transition-transform duration-300">
+    <h3 id="memberModalTitle" class="text-base font-bold text-slate-800 text-center mb-1">Thành viên</h3>
+    <p class="text-xs text-slate-500 text-center mb-5">Nhập tên thành viên</p>
+    <input type="hidden" id="memberEditName">
+    <input type="text" id="memberNameInput" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none mb-5" placeholder="Tên thành viên">
+    <div class="flex space-x-3">
+      <button onclick="closeMemberModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold py-3.5 px-4 rounded-xl cursor-pointer transition-all">Hủy</button>
+      <button id="btnSaveMember" onclick="saveMember()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-3.5 px-4 rounded-xl shadow-md cursor-pointer transition-all">Lưu</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM MODAL -->
+<div id="confirmModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden opacity-0 transition-opacity duration-300">
+  <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl transform scale-95 transition-transform duration-300">
+    <div id="confirmIcon" class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl mx-auto mb-4 bg-rose-50">⚠️</div>
+    <h3 id="confirmTitle" class="text-base font-bold text-slate-800 text-center mb-1">Xác nhận</h3>
+    <p id="confirmContent" class="text-xs text-slate-500 text-center leading-relaxed mb-6">Nội dung xác nhận.</p>
+    <div class="flex space-x-3">
+      <button onclick="closeConfirmModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold py-3.5 px-4 rounded-xl cursor-pointer transition-all">Hủy</button>
+      <button id="confirmBtn" class="flex-1 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold py-3.5 px-4 rounded-xl shadow-md cursor-pointer transition-all">Xóa</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="fixed bottom-5 right-5 transform translate-y-20 opacity-0 bg-emerald-600 text-white px-5 py-4 rounded-xl shadow-xl transition-all duration-300 flex items-center space-x-3 text-sm font-semibold z-50">
+  <span class="text-lg">🎉</span>
+  <span id="toastMessage">Thành công!</span>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let allMembers = [];
+
+  function switchTab(tab) {
+    document.querySelectorAll('.tab-section').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('.tab-btn').forEach(el => {
+      el.classList.remove('text-blue-600', 'bg-blue-50');
+      el.classList.add('text-slate-600');
+    });
+
+    document.getElementById('tab-' + tab).classList.remove('hidden');
+    const activeBtn = document.querySelector(`[data-tab="${tab}"]`);
+    activeBtn.classList.remove('text-slate-600');
+    activeBtn.classList.add('text-blue-600', 'bg-blue-50');
+
+    if (tab === 'dashboard') loadDashboard();
+    if (tab === 'members') loadMembers();
+    if (tab === 'meals') loadMeals();
+    if (tab === 'payments') loadPayments();
+    if (tab === 'logs') loadLogs();
+  }
+
+  function formatDateTime(iso) {
+    if (!iso) return '--';
+    const d = new Date(iso);
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  function loadDashboard() {
+    fetch("/api/admin/dashboard")
+      .then(r => r.json())
+      .then(data => {
+        document.getElementById("statMeals").textContent = data.totalMeals;
+        document.getElementById("statDebt").textContent = formatVND(data.totalDebt);
+        document.getElementById("statPaid").textContent = formatVND(data.totalPaid);
+        document.getElementById("statDucDebt").textContent = formatVND(data.ducDebt || 0);
+        document.getElementById("statMembers").textContent = data.activeMembers;
+
+        const container = document.getElementById("recentTransactions");
+        if (data.recentTransactions.length === 0) {
+          container.innerHTML = '<div class="py-8 text-center text-xs text-slate-400">Chưa có giao dịch</div>';
+        } else {
+          container.innerHTML = data.recentTransactions.map(t => `
+            <div class="px-4 py-3 flex items-center justify-between hover:bg-slate-50">
+              <div class="min-w-0">
+                <span class="font-bold text-slate-700">${t.memberName}</span>
+                <span class="text-slate-400 ml-2">${t.details}</span>
+              </div>
+              <div class="text-right">
+                <span class="font-extrabold text-slate-800 ml-2 whitespace-nowrap">${formatVND(t.amount)}</span>
+                <div class="text-[10px] text-slate-400 mt-0.5">${formatDateTime(t.createdAt)}</div>
+              </div>
+            </div>
+          `).join("");
+        }
+      })
+      .catch(err => {
+        console.error("Dashboard error:", err);
+      });
+  }
+
+  function loadMeals() {
+    fetch("/api/meals")
+      .then(r => r.json())
+      .then(meals => {
+        const tbody = document.getElementById("mealsTableBody");
+        if (meals.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-slate-400">Chưa có hóa đơn</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = meals.map(m => `
+          <tr class="border-b border-slate-100 hover:bg-slate-50">
+            <td class="px-4 py-3 text-slate-600">${m.date}</td>
+            <td class="px-4 py-3 font-bold text-slate-800">${m.dishName}</td>
+            <td class="px-4 py-3 text-right font-mono font-bold text-slate-800">${formatVND(m.totalCost)}</td>
+            <td class="px-4 py-3 text-slate-600">${m.participants.join(", ")}</td>
+            <td class="px-4 py-3 text-center">
+              <button onclick="openEditMeal('${m.id}')" class="text-blue-600 hover:text-blue-800 font-bold text-xs mr-2 cursor-pointer">Sửa</button>
+              <button onclick="confirmDeleteMeal('${m.id}', '${m.dishName}')" class="text-rose-600 hover:text-rose-800 font-bold text-xs cursor-pointer">Xóa</button>
+            </td>
+          </tr>
+        `).join("");
+      })
+      .catch(err => {
+        console.error("Meals error:", err);
+      });
+  }
+
+  function buildQueryString(params) {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v) qs.set(k, v);
+    });
+    const str = qs.toString();
+    return str ? '?' + str : '';
+  }
+
+  function loadPayments() {
+    const dateFrom = document.getElementById("payDateFrom").value;
+    const dateTo = document.getElementById("payDateTo").value;
+    const dish = document.getElementById("payDish").value;
+    const sort = document.getElementById("paySort").value;
+
+    fetch("/api/payments" + buildQueryString({ date_from: dateFrom, date_to: dateTo, dish, sort }))
+      .then(r => r.json())
+      .then(payments => {
+        const tbody = document.getElementById("paymentsTableBody");
+        if (payments.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">Chưa có thanh toán</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = payments.map(p => `
+          <tr class="border-b border-slate-100 hover:bg-slate-50">
+            <td class="px-4 py-3 font-bold text-slate-700">${p.memberName}</td>
+            <td class="px-4 py-3 text-slate-600">${p.dishName}</td>
+            <td class="px-4 py-3 text-right font-mono font-bold text-slate-800">${formatVND(p.amount)}</td>
+            <td class="px-4 py-3 text-slate-600">${p.date}</td>
+            <td class="px-4 py-3 text-slate-600">${formatDateTime(p.createdAt)}</td>
+            <td class="px-4 py-3 text-center">
+              <button onclick="revertPayment('${p.id}')" class="text-amber-600 hover:text-amber-800 font-bold text-xs cursor-pointer">Hoàn tác</button>
+            </td>
+          </tr>
+        `).join("");
+      })
+      .catch(err => {
+        console.error("Payments error:", err);
+      });
+  }
+
+  function resetPaymentFilters() {
+    document.getElementById("payDateFrom").value = "";
+    document.getElementById("payDateTo").value = "";
+    document.getElementById("payDish").value = "";
+    document.getElementById("paySort").value = "desc";
+    loadPayments();
+  }
+
+  function loadLogs() {
+    const dateFrom = document.getElementById("logDateFrom").value;
+    const dateTo = document.getElementById("logDateTo").value;
+    const action = document.getElementById("logAction").value;
+    const sort = document.getElementById("logSort").value;
+
+    fetch("/api/logs" + buildQueryString({ date_from: dateFrom, date_to: dateTo, action, sort }))
+      .then(r => r.json())
+      .then(logs => {
+        const tbody = document.getElementById("logsTableBody");
+        if (logs.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-slate-400">Chưa có nhật ký</td></tr>';
+          return;
+        }
+
+        const actionColors = {
+          "payment": "text-blue-600",
+          "bill_added": "text-emerald-600",
+          "bill_edited": "text-amber-600",
+          "bill_deleted": "text-rose-600",
+          "payment_reverted": "text-purple-600",
+          "member_deleted": "text-slate-500"
+        };
+
+        tbody.innerHTML = logs.map(l => `
+          <tr class="border-b border-slate-100 hover:bg-slate-50">
+            <td class="px-4 py-3 font-bold text-slate-700">${l.memberName}</td>
+            <td class="px-4 py-3 ${actionColors[l.action] || 'text-slate-600'} font-bold">${l.action}</td>
+            <td class="px-4 py-3 text-slate-600">${l.details}</td>
+            <td class="px-4 py-3 text-right font-mono font-bold text-slate-800">${formatVND(l.amount)}</td>
+            <td class="px-4 py-3 text-slate-600">${formatDateTime(l.createdAt)}</td>
+          </tr>
+        `).join("");
+      })
+      .catch(err => {
+        console.error("Logs error:", err);
+      });
+  }
+
+  function resetLogFilters() {
+    document.getElementById("logDateFrom").value = "";
+    document.getElementById("logDateTo").value = "";
+    document.getElementById("logAction").value = "";
+    document.getElementById("logSort").value = "desc";
+    loadLogs();
+  }
+
+  function openEditMeal(mealId) {
+    fetch(`/api/meals/${mealId}`)
+      .then(r => r.json())
+      .then(meal => {
+        document.getElementById("editMealId").value = meal.id;
+        document.getElementById("editDishName").value = meal.dishName;
+        document.getElementById("editTotalCost").value = meal.totalCost;
+        document.getElementById("editDate").value = meal.date;
+
+        const container = document.getElementById("editParticipantsContainer");
+        container.innerHTML = "";
+
+        allMembers.forEach(m => {
+          const label = document.createElement("label");
+          label.className = "flex items-center space-x-2.5 p-2 bg-white rounded-lg border border-slate-200/60 cursor-pointer text-xs font-semibold hover:bg-slate-50 transition-colors min-w-0";
+          const checked = meal.participants.includes(m.name) ? "checked" : "";
+          label.innerHTML = `
+            <input type="checkbox" value="${m.name}" ${checked} class="edit-participant-cb w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 accent-blue-600 cursor-pointer flex-shrink-0">
+            <span class="truncate text-slate-700" title="${m.name}">${m.name}</span>
+          `;
+          container.appendChild(label);
+        });
+
+        const modal = document.getElementById("editMealModal");
+        modal.classList.remove("hidden");
+        setTimeout(() => {
+          modal.classList.remove("opacity-0");
+          modal.querySelector("div").classList.remove("scale-95");
+        }, 50);
+      });
+  }
+
+  function closeEditMealModal() {
+    const modal = document.getElementById("editMealModal");
+    modal.classList.add("opacity-0");
+    modal.querySelector("div").classList.add("scale-95");
+    setTimeout(() => {
+      modal.classList.add("hidden");
+    }, 300);
+  }
+
+  function saveEditMeal() {
+    const mealId = document.getElementById("editMealId").value;
+    const dishName = document.getElementById("editDishName").value.trim();
+    const totalCost = parseFloat(document.getElementById("editTotalCost").value);
+    const date = document.getElementById("editDate").value;
+
+    if (!dishName || totalCost <= 0) {
+      showToast("Vui lòng nhập đầy đủ thông tin!");
+      return;
+    }
+
+    const checkboxes = document.querySelectorAll(".edit-participant-cb");
+    const participants = [];
+    checkboxes.forEach(cb => {
+      if (cb.checked) participants.push(cb.value);
+    });
+
+    if (participants.length === 0) {
+      showToast("Vui lòng chọn ít nhất 1 người tham gia!");
+      return;
+    }
+
+    fetch(`/api/meals/${mealId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dishName, totalCost, participants })
+    })
+      .then(r => r.json())
+      .then(res => {
+        if (res.success) {
+          closeEditMealModal();
+          showToast("Sửa hóa đơn thành công! 🎉");
+          loadMeals();
+          loadDashboard();
+        } else {
+          showToast("Lỗi: " + res.message);
+        }
+      })
+      .catch(err => {
+        showToast("Lỗi: " + err);
+      });
+  }
+
+  function confirmDeleteMeal(mealId, dishName) {
+    document.getElementById("confirmTitle").textContent = "Xóa hóa đơn";
+    document.getElementById("confirmContent").textContent = `Xóa "${dishName}"? Các khoản thanh toán liên quan cũng sẽ bị xóa.`;
+    document.getElementById("confirmIcon").textContent = "⚠️";
+    document.getElementById("confirmBtn").textContent = "Xóa";
+    document.getElementById("confirmBtn").className = "flex-1 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold py-3.5 px-4 rounded-xl shadow-md cursor-pointer transition-all";
+    document.getElementById("confirmBtn").onclick = () => {
+      deleteMeal(mealId);
+      closeConfirmModal();
+    };
+
+    const modal = document.getElementById("confirmModal");
+    modal.classList.remove("hidden");
+    setTimeout(() => {
+      modal.classList.remove("opacity-0");
+      modal.querySelector("div").classList.remove("scale-95");
+    }, 50);
+  }
+
+  function deleteMeal(mealId) {
+    fetch(`/api/meals/${mealId}`, { method: "DELETE" })
+      .then(r => r.json())
+      .then(res => {
+        if (res.success) {
+          showToast("Xóa hóa đơn thành công!");
+          loadMeals();
+          loadDashboard();
+        } else {
+          showToast("Lỗi: " + res.message);
+        }
+      })
+      .catch(err => {
+        showToast("Lỗi: " + err);
+      });
+  }
+
+  function revertPayment(paymentId) {
+    if (!confirm("Hoàn tác khoản thanh toán này?")) return;
+
+    fetch(`/api/payments/${paymentId}`, { method: "DELETE" })
+      .then(r => r.json())
+      .then(res => {
+        if (res.success) {
+          showToast("Hoàn tác thành công!");
+          loadPayments();
+          loadDashboard();
+        } else {
+          showToast("Lỗi: " + res.message);
+        }
+      })
+      .catch(err => {
+        showToast("Lỗi: " + err);
+      });
+  }
+
+  function loadMembers() {
+    fetch("/api/admin/members")
+      .then(r => r.json())
+      .then(members => {
+        const tbody = document.getElementById("membersTableBody");
+        if (members.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">Chưa có thành viên</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = members.map(m => `
+          <tr class="border-b border-slate-100 hover:bg-slate-50">
+            <td class="px-4 py-3 font-bold text-slate-700">${m.name}</td>
+            <td class="px-4 py-3 text-right font-mono font-bold text-rose-600">${formatVND(m.debt)}</td>
+            <td class="px-4 py-3 text-center text-slate-600">${m.mealsAte}</td>
+            <td class="px-4 py-3 text-center text-slate-600">${m.paymentsCount}</td>
+            <td class="px-4 py-3 text-slate-600">${m.createdAt ? m.createdAt.substring(0, 10) : "--"}</td>
+            <td class="px-4 py-3 text-center">
+              <button onclick="openEditMemberModal('${m.name}')" class="text-blue-600 hover:text-blue-800 font-bold text-xs mr-2 cursor-pointer">Sửa</button>
+              <button onclick="confirmDeleteMember('${m.name}')" class="text-rose-600 hover:text-rose-800 font-bold text-xs cursor-pointer">Xóa</button>
+            </td>
+          </tr>
+        `).join("");
+      })
+      .catch(err => {
+        console.error("Members error:", err);
+      });
+  }
+
+  function openAddMemberModal() {
+    document.getElementById("memberModalTitle").textContent = "Thêm thành viên";
+    document.getElementById("memberEditName").value = "";
+    document.getElementById("memberNameInput").value = "";
+    openMemberModal();
+  }
+
+  function openEditMemberModal(name) {
+    document.getElementById("memberModalTitle").textContent = "Sửa tên thành viên";
+    document.getElementById("memberEditName").value = name;
+    document.getElementById("memberNameInput").value = name;
+    openMemberModal();
+  }
+
+  function openMemberModal() {
+    const modal = document.getElementById("memberModal");
+    modal.classList.remove("hidden");
+    setTimeout(() => {
+      modal.classList.remove("opacity-0");
+      modal.querySelector("div").classList.remove("scale-95");
+    }, 50);
+  }
+
+  function closeMemberModal() {
+    const modal = document.getElementById("memberModal");
+    modal.classList.add("opacity-0");
+    modal.querySelector("div").classList.add("scale-95");
+    setTimeout(() => {
+      modal.classList.add("hidden");
+    }, 300);
+  }
+
+  function saveMember() {
+    const originalName = document.getElementById("memberEditName").value;
+    const newName = document.getElementById("memberNameInput").value.trim();
+    const btn = document.getElementById("btnSaveMember");
+
+    if (!newName) {
+      showToast("Vui lòng nhập tên thành viên!");
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = "Đang xử lý...";
+
+    if (originalName) {
+      fetch(`/api/admin/members/${encodeURIComponent(originalName)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName })
+      })
+      .then(r => r.json())
+      .then(res => {
+        btn.disabled = false;
+        btn.textContent = "Lưu";
+        if (res.success) {
+          closeMemberModal();
+          showToast("Đổi tên thành công!");
+          loadMembers();
+          loadDashboard();
+        } else {
+          showToast("Lỗi: " + res.message);
+        }
+      })
+      .catch(err => {
+        btn.disabled = false;
+        btn.textContent = "Lưu";
+        showToast("Lỗi: " + err);
+      });
+    } else {
+      fetch("/api/admin/members", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName })
+      })
+      .then(r => r.json())
+      .then(res => {
+        btn.disabled = false;
+        btn.textContent = "Lưu";
+        if (res.success) {
+          closeMemberModal();
+          showToast("Thêm thành viên thành công!");
+          loadMembers();
+          loadDashboard();
+        } else {
+          showToast("Lỗi: " + res.message);
+        }
+      })
+      .catch(err => {
+        btn.disabled = false;
+        btn.textContent = "Lưu";
+        showToast("Lỗi: " + err);
+      });
+    }
+  }
+
+  function confirmDeleteMember(name) {
+    document.getElementById("confirmTitle").textContent = "Xóa thành viên";
+    document.getElementById("confirmContent").textContent = `Xóa "${name}"? Hành động này không thể hoàn tác.`;
+    document.getElementById("confirmIcon").textContent = "⚠️";
+    document.getElementById("confirmBtn").textContent = "Xóa";
+    document.getElementById("confirmBtn").className = "flex-1 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold py-3.5 px-4 rounded-xl shadow-md cursor-pointer transition-all";
+    document.getElementById("confirmBtn").onclick = () => {
+      deleteMember(name);
+      closeConfirmModal();
+    };
+
+    const modal = document.getElementById("confirmModal");
+    modal.classList.remove("hidden");
+    setTimeout(() => {
+      modal.classList.remove("opacity-0");
+      modal.querySelector("div").classList.remove("scale-95");
+    }, 50);
+  }
+
+  function deleteMember(name) {
+    fetch(`/api/admin/members/${encodeURIComponent(name)}`, { method: "DELETE" })
+      .then(r => r.json())
+      .then(res => {
+        if (res.success) {
+          showToast("Xóa thành viên thành công!");
+          loadMembers();
+          loadDashboard();
+        } else {
+          showToast("Lỗi: " + res.message);
+        }
+      })
+      .catch(err => {
+        showToast("Lỗi: " + err);
+      });
+  }
+
+  function formatVND(amount) {
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+  }
+
+  function showToast(message) {
+    const toast = document.getElementById("toast");
+    document.getElementById("toastMessage").textContent = message;
+
+    toast.classList.remove("translate-y-20", "opacity-0");
+    toast.classList.add("translate-y-0", "opacity-100");
+
+    setTimeout(() => {
+      toast.classList.remove("translate-y-0", "opacity-100");
+      toast.classList.add("translate-y-20", "opacity-0");
+    }, 4500);
+  }
+
+  function closeConfirmModal() {
+    const modal = document.getElementById("confirmModal");
+    modal.classList.add("opacity-0");
+    modal.querySelector("div").classList.add("scale-95");
+    setTimeout(() => {
+      modal.classList.add("hidden");
+    }, 300);
+  }
+
+  document.addEventListener("DOMContentLoaded", function() {
+    switchTab('dashboard');
+    loadMeals();
+    loadMembers();
+
+    fetch("/api/members")
+      .then(r => r.json())
+      .then(members => { allMembers = members || []; });
+  });
+</script>
+{% endblock %}
