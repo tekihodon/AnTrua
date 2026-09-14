@@ -62,7 +62,8 @@ type App struct {
 func NewApp() (*App, error) {
 	connStr := os.Getenv("DATABASE_URL")
 	if connStr == "" {
-		return nil, fmt.Errorf("DATABASE_URL environment variable is not set")
+		fmt.Println("WARNING: DATABASE_URL environment variable is not set. Server will start but database operations will fail until configured.")
+		return &App{DB: nil}, nil
 	}
 
 	db, err := sql.Open("postgres", connStr)
@@ -75,6 +76,7 @@ func NewApp() (*App, error) {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
+	fmt.Println("Successfully connected to database")
 	return &App{DB: db}, nil
 }
 
@@ -284,6 +286,9 @@ func (a *App) getMealParticipants(mealID string) ([]string, error) {
 
 // getPayments returns all payments
 func (a *App) getPayments() ([]Payment, error) {
+	if a.DB == nil {
+		return nil, fmt.Errorf("database not configured")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -326,7 +331,9 @@ func main() {
 		fmt.Println("Failed to initialize app:", err)
 		os.Exit(1)
 	}
-	defer app.DB.Close()
+	if app.DB != nil {
+		defer app.DB.Close()
+	}
 
 	// Setup routes
 	router := gin.New()
@@ -335,6 +342,10 @@ func main() {
 	})
 
 	router.GET("/api/members", func(c *gin.Context) {
+		if app.DB == nil {
+			c.JSON(503, gin.H{"error": "Database not configured. Set DATABASE_URL environment variable."})
+			return
+		}
 		members, err := app.getMembers()
 		if err != nil {
 			c.JSON(500, gin.H{"error": "Failed to fetch members"})
@@ -344,6 +355,10 @@ func main() {
 	})
 
 	router.GET("/api/members/:name/debt-details", func(c *gin.Context) {
+		if app.DB == nil {
+			c.JSON(503, gin.H{"error": "Database not configured. Set DATABASE_URL environment variable."})
+			return
+		}
 		name := c.Param("name")
 		memberID, err := app.getMemberID(name)
 		if err != nil {
@@ -354,6 +369,10 @@ func main() {
 	})
 
 	router.POST("/api/meals", func(c *gin.Context) {
+		if app.DB == nil {
+			c.JSON(503, gin.H{"error": "Database not configured. Set DATABASE_URL environment variable."})
+			return
+		}
 		var data map[string]interface{}
 		if err := c.ShouldBindJSON(&data); err != nil {
 			c.JSON(400, gin.H{"error": "Invalid JSON"})
@@ -414,6 +433,10 @@ func main() {
 	})
 
 	router.GET("/api/meals", func(c *gin.Context) {
+		if app.DB == nil {
+			c.JSON(503, gin.H{"error": "Database not configured. Set DATABASE_URL environment variable."})
+			return
+		}
 		meals, err := app.getMeals()
 		if err != nil {
 			c.JSON(500, gin.H{"error": "Failed to fetch meals"})
@@ -423,6 +446,10 @@ func main() {
 	})
 
 	router.GET("/api/meals/:id", func(c *gin.Context) {
+		if app.DB == nil {
+			c.JSON(503, gin.H{"error": "Database not configured. Set DATABASE_URL environment variable."})
+			return
+		}
 		id := c.Param("id")
 		if err := app.deleteMeal(id); err != nil {
 			c.JSON(404, gin.H{"error": "Meal not found"})
@@ -432,6 +459,10 @@ func main() {
 	})
 
 	router.GET("/api/payments", func(c *gin.Context) {
+		if app.DB == nil {
+			c.JSON(503, gin.H{"error": "Database not configured. Set DATABASE_URL environment variable."})
+			return
+		}
 		payments, err := app.getPayments()
 		if err != nil {
 			c.JSON(500, gin.H{"error": "Failed to fetch payments"})
@@ -441,6 +472,10 @@ func main() {
 	})
 
 	router.GET("/api/logs", func(c *gin.Context) {
+		if app.DB == nil {
+			c.JSON(503, gin.H{"error": "Database not configured. Set DATABASE_URL environment variable."})
+			return
+		}
 		c.JSON(200, gin.H{"message": "Logs endpoint"})
 	})
 

@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  antrua:
+    image: tekihodon/antroagov:1.0
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_URL=postgresql://postgres.fxwmdpxlxlhktitrusnq:[123!PhamDinhDuc]@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres
+    volumes:
+      - ./data:/app/data
